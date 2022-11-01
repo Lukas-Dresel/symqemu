@@ -49,6 +49,10 @@
     if (arg2_expr == NULL) {                                                   \
         arg2_expr = _sym_build_integer(arg2, _sym_bits_helper(arg1_expr));     \
     }                                                                          \
+    if (arg1_expr == NULL || arg2_expr == NULL) {                              \
+        /* the backend forces us to concretize, probably expression pruning */ \
+        return NULL;                                                           \
+    }                                                                          \
                                                                                \
     assert(_sym_bits_helper(arg1_expr) == 32 ||                                \
            _sym_bits_helper(arg1_expr) == 64);                                 \
