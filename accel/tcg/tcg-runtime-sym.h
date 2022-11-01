@@ -82,6 +82,10 @@ DEF_HELPER_FLAGS_2(sym_zext, TCG_CALL_NO_RWG_SE, ptr, ptr, i64)
 DEF_HELPER_FLAGS_1(sym_sext_i32_i64, TCG_CALL_NO_RWG_SE, ptr, ptr)
 DEF_HELPER_FLAGS_1(sym_zext_i32_i64, TCG_CALL_NO_RWG_SE, ptr, ptr)
 DEF_HELPER_FLAGS_1(sym_trunc_i64_i32, TCG_CALL_NO_RWG_SE, ptr, ptr)
+DEF_HELPER_FLAGS_2(sym_zero_extend_by, TCG_CALL_NO_RWG_SE, ptr, ptr, i64)
+DEF_HELPER_FLAGS_2(sym_sign_extend_by, TCG_CALL_NO_RWG_SE, ptr, ptr, i64)
+DEF_HELPER_FLAGS_2(sym_zero_extend_to, TCG_CALL_NO_RWG_SE, ptr, ptr, i64)
+DEF_HELPER_FLAGS_2(sym_sign_extend_to, TCG_CALL_NO_RWG_SE, ptr, ptr, i64)
 
 /* Byte swapping */
 DEF_HELPER_FLAGS_2(sym_bswap, TCG_CALL_NO_RWG_SE, ptr, ptr, i64)

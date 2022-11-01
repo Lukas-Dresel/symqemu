@@ -191,15 +191,64 @@ void *HELPER(sym_sext)(void *expr, uint64_t target_length)
 
 void *HELPER(sym_zext)(void *expr, uint64_t target_length)
 {
-    if (expr == NULL)
+    if (expr == NULL) {
         return NULL;
-
+    }
     size_t current_bits = _sym_bits_helper(expr);
     size_t desired_bits = target_length * 8;
 
     return _sym_build_and(
         expr,
         _sym_build_integer((1ull << desired_bits) - 1, current_bits));
+}
+
+void* HELPER(sym_zero_extend_by)(void* expr, uint64_t extra_bits) {
+    if (expr == NULL) {
+        return NULL;
+    }
+    if (extra_bits == 0) {
+        return expr;
+    }
+    void* result = _sym_build_zext(expr, extra_bits);
+    assert(_sym_bits_helper(result) == extra_bits + _sym_bits_helper(expr));
+    return result;
+}
+void* HELPER(sym_zero_extend_to)(void* expr, uint64_t target_bits) {
+    if (expr == NULL) {
+        return NULL;
+    }
+    size_t current_bits = _sym_bits_helper(expr);
+    if (current_bits == target_bits) {
+        return expr;
+    }
+    assert(current_bits < target_bits);
+
+    size_t extra_bits = target_bits - current_bits;
+    return HELPER(sym_zero_extend_by)(expr, extra_bits);
+}
+void* HELPER(sym_sign_extend_by)(void* expr, uint64_t extra_bits) {
+    if (expr == NULL) {
+        return NULL;
+    }
+    if (extra_bits == 0) {
+        return expr;
+    }
+    void* result = _sym_build_sext(expr, extra_bits);
+    assert(_sym_bits_helper(result) == extra_bits + _sym_bits_helper(expr));
+    return result;
+}
+void* HELPER(sym_sign_extend_to)(void* expr, uint64_t target_bits) {
+    if (expr == NULL) {
+        return NULL;
+    }
+    size_t current_bits = _sym_bits_helper(expr);
+    if (current_bits == target_bits) {
+        return expr;
+    }
+    assert(current_bits < target_bits);
+
+    size_t extra_bits = target_bits - current_bits;
+    return HELPER(sym_sign_extend_by)(expr, extra_bits);
 }
 
 void *HELPER(sym_sext_i32_i64)(void *expr)
@@ -302,15 +351,12 @@ static void *sym_load_guest_internal(CPUArchState *env,
                                      uint64_t load_length, uint8_t result_length,
                                      target_ulong mmu_idx)
 {
-    /* Try an alternative address */
+    /* The memory backend operates with host addresses ATM, as such we have to concretize the guest address here */
     if (addr_expr != NULL)
-        _sym_push_path_constraint(
-            _sym_build_equal(
-                addr_expr, _sym_build_integer(addr, sizeof(addr) * 8)),
-            true, get_pc(env));
+        _sym_concretize_pointer(addr_expr, (const void*)addr, get_pc(env));
 
     void *host_addr = tlb_vaddr_to_host(env, addr, MMU_DATA_LOAD, mmu_idx);
-    void *memory_expr = _sym_read_memory((uint8_t*)host_addr, load_length, true);
+    void *memory_expr = _sym_read_memory(addr_expr, (uint8_t*)host_addr, load_length, true);
 
     if (load_length == result_length || memory_expr == NULL)
         return memory_expr;
@@ -337,15 +383,13 @@ static void sym_store_guest_internal(CPUArchState *env,
                                      target_ulong addr, void *addr_expr,
                                      uint64_t length, target_ulong mmu_idx)
 {
-    /* Try an alternative address */
+    /* Memory backend only takes host addresses, so concretize pointer here first */
     if (addr_expr != NULL)
-        _sym_push_path_constraint(
-            _sym_build_equal(
-                addr_expr, _sym_build_integer(addr, sizeof(addr) * 8)),
-            true, get_pc(env));
+        _sym_concretize_pointer(addr_expr, (const void*)addr, get_pc(env));
 
     void *host_addr = tlb_vaddr_to_host(env, addr, MMU_DATA_STORE, mmu_idx);
-    _sym_write_memory((uint8_t*)host_addr, length, value_expr, true);
+    // since the memory backend takes host pointers only, we need to concretize the guest address here manually
+    _sym_write_memory(addr_expr, value_expr, (uint8_t*)host_addr, length, true);
 }
 
 void HELPER(sym_store_guest_i32)(CPUArchState *env,
@@ -370,6 +414,7 @@ static void *sym_load_host_internal(void *addr, uint64_t offset,
                                     uint64_t load_length, uint64_t result_length)
 {
     void *memory_expr = _sym_read_memory(
+        NULL, // host adresses are not symbolic (they're storing to the fpu state e.g.)
         (uint8_t*)addr + offset, load_length, true);
 
     if (load_length == result_length || memory_expr == NULL)
@@ -392,14 +437,16 @@ void HELPER(sym_store_host_i32)(uint32_t value, void *value_expr,
                                 void *addr,
                                 uint64_t offset, uint64_t length)
 {
-    _sym_write_memory((uint8_t*)addr + offset, length, value_expr, true);
+    // host adresses are not symbolic (they're storing to the fpu state e.g.)
+    _sym_write_memory(NULL, value_expr, (uint8_t*)addr + offset, length, true);
 }
 
 void HELPER(sym_store_host_i64)(uint64_t value, void *value_expr,
                                 void *addr,
                                 uint64_t offset, uint64_t length)
 {
-    _sym_write_memory((uint8_t*)addr + offset, length, value_expr, true);
+    // host adresses are not symbolic (they're storing to the fpu state e.g.)
+    _sym_write_memory(NULL, value_expr, (uint8_t*)addr + offset, length, true);
 }
 
 DECL_HELPER_BINARY(rotate_left)

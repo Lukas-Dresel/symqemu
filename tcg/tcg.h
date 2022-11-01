@@ -788,6 +788,10 @@ static inline TCGTemp *tcgv_i64_temp(TCGv_i64 v)
 {
     return tcgv_i32_temp((TCGv_i32)v);
 }
+static inline TCGTemp *tcgv_tl_temp(TCGv v)
+{
+    return tcgv_i32_temp((TCGv_i32)v);
+}
 
 static inline TCGTemp *tcgv_ptr_temp(TCGv_ptr v)
 {
@@ -830,6 +834,11 @@ static inline TCGv_i64 temp_tcgv_i64(TCGTemp *t)
     return (TCGv_i64)temp_tcgv_i32(t);
 }
 
+static inline TCGv temp_tcgv_tl(TCGTemp *t)
+{
+    return (TCGv)temp_tcgv_i32(t);
+}
+
 static inline TCGv_ptr temp_tcgv_ptr(TCGTemp *t)
 {
     return (TCGv_ptr)temp_tcgv_i32(t);
@@ -848,6 +857,14 @@ static inline TCGv_ptr tcgv_i32_expr(TCGv_i32 v)
 static inline TCGv_ptr tcgv_i64_expr(TCGv_i64 v)
 {
     return temp_tcgv_ptr(temp_expr(tcgv_i64_temp(v)));
+}
+static inline TCGv_ptr tcgv_tl_expr(TCGv v)
+{
+    return temp_tcgv_ptr(temp_expr(tcgv_tl_temp(v)));
+}
+static inline TCGv_ptr tcgv_ptr_expr(TCGv_ptr v)
+{
+    return temp_tcgv_ptr(temp_expr(tcgv_ptr_temp(v)));
 }
 
 /* Expression pointers as (64-bit) numbers for code simplification. This assumes

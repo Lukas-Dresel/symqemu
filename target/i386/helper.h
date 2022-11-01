@@ -228,3 +228,5 @@ DEF_HELPER_3(rcrq, tl, env, tl, tl)
 #endif
 
 DEF_HELPER_1(rdrand, tl, env)
+
+DEF_HELPER_6(sym_div, ptr, tl, tl, tl, ptr, tl, ptr)

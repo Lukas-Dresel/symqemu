@@ -1623,7 +1623,7 @@ static void gen_rot_rm_T1(DisasContext *s, TCGMemOp ot, int op1, int is_right)
     tcg_temp_free_i32(t0);
     tcg_temp_free_i32(t1);
 
-    /* The CC_OP value is no longer predictable.  */ 
+    /* The CC_OP value is no longer predictable.  */
     set_cc_op(s, CC_OP_DYNAMIC);
 }
 
@@ -1716,7 +1716,7 @@ static void gen_rotc_rm_T1(DisasContext *s, TCGMemOp ot, int op1,
         gen_op_ld_v(s, ot, s->T0, s->A0);
     else
         gen_op_mov_v_reg(s, ot, s->T0, op1);
-    
+
     if (is_right) {
         switch (ot) {
         case MO_8:
@@ -4481,6 +4481,106 @@ static void gen_sse(CPUX86State *env, DisasContext *s, int b,
     }
 }
 
+#if TARGET_LONG_BITS == 64
+#define gen_helper_sym_deposit_tl gen_helper_sym_deposit_i64
+#define gen_helper_sym_and_tl gen_helper_sym_and_i64
+#define gen_helper_sym_or_tl gen_helper_sym_or_i64
+#define gen_helper_sym_extract_tl gen_helper_sym_extract_i64
+#else
+#define gen_helper_sym_deposit_tl gen_helper_sym_deposit_i32
+#define gen_helper_sym_and_tl gen_helper_sym_and_i32
+#define gen_helper_sym_or_tl gen_helper_sym_or_i32
+#define gen_helper_sym_extract_tl gen_helper_sym_extract_i32
+#endif
+
+inline static void gen_concretize_temp(TCGTemp *v) {
+    tcg_gen_op2i_i64(INDEX_op_movi_i64, temp_tcgv_i64(temp_expr(v)), 0);
+}
+static void gen_symbolic_divb_AL(TCGv_env env, DisasContext* s, bool is_signed) {
+    // TODO clean up const temps once it's working
+    int offset_lower = 0;
+    int nbits = 8;
+    int offset_higher = nbits;
+
+    TCGv const_nbits = tcg_const_tl(nbits);
+    TCGv const_mask_lower = tcg_const_tl(0xff);
+    TCGv const_mask_higher = tcg_const_tl(0xff00);
+    TCGv const_null = tcg_const_tl(0);
+    TCGv const_offset_lower = tcg_const_tl(offset_lower);
+    TCGv const_offset_higher = tcg_const_tl(offset_higher);
+    TCGv const_signed = tcg_const_tl(is_signed ? 0x331337 : 0x0);
+    TCGv const_target_bits = tcg_const_tl(TARGET_LONG_BITS);
+
+
+    TCGv div_result__only_symbolic = tcg_temp_new();
+    TCGv_ptr div_result_expr = tcgv_tl_expr(div_result__only_symbolic);
+
+    gen_helper_sym_div(div_result_expr,
+        const_offset_higher, const_signed,
+        cpu_regs[R_EAX], tcgv_tl_expr(cpu_regs[R_EAX]),
+        s->T0, tcgv_tl_expr(s->T0));
+
+    TCGv remainder = tcg_temp_new();
+    TCGv_ptr remainder_expr = tcgv_tl_expr(remainder);
+    TCGv quotient = tcg_temp_new();
+    TCGv_ptr quotient_expr = tcgv_tl_expr(quotient);
+    gen_helper_sym_extract_tl(quotient_expr, div_result_expr, const_offset_lower, const_nbits);
+    gen_helper_sym_extract_tl(remainder_expr, div_result_expr, const_offset_higher, const_nbits);
+    gen_helper_sym_zero_extend_to(quotient_expr, quotient_expr, const_target_bits);
+    gen_helper_sym_zero_extend_to(remainder_expr, remainder_expr, const_target_bits);
+
+    TCGv old_eax = tcg_temp_new();
+    TCGv old_edx = tcg_temp_new();
+    tcg_gen_mov_tl(old_eax, cpu_regs[R_EAX]);
+    tcg_gen_mov_tl(old_edx, cpu_regs[R_EDX]);
+
+    if (is_signed) {
+        gen_helper_idivb_AL(cpu_env, s->T0);
+    }
+    else {
+        gen_helper_divb_AL(cpu_env, s->T0);
+    }
+
+    // eax is now nuked, remove symbolic expression, same for edx in larger versions
+    gen_concretize_temp(tcgv_tl_temp(cpu_regs[R_EAX]));
+
+    TCGv quot_real = tcg_temp_new();
+    TCGv rem_real = tcg_temp_new();
+
+    // get the real value from the now concrete result (quot = eax & 0xff, rem = (eax & 0xff00) >> 8)
+    tcg_gen_and_tl(quot_real, cpu_regs[R_EAX], const_mask_lower);
+    tcg_gen_and_tl(rem_real, cpu_regs[R_EAX], const_mask_higher);
+    tcg_gen_shr_tl(rem_real, rem_real, const_nbits);
+
+    // associate the quotient and remainder expressions with the new temps
+    tcg_gen_op2_i64(INDEX_op_mov_i64, tcgv_i64_expr_num(quot_real), tcgv_i64_expr_num(quotient));
+    tcg_gen_op2_i64(INDEX_op_mov_i64, tcgv_i64_expr_num(rem_real), tcgv_i64_expr_num(remainder));
+    // now we should be able to operate with these values normally
+
+    // deposit the new values into the result, in the case of divb into R_EAX
+    // first depost quotient into old_eax, place back into R_EAX
+    tcg_gen_deposit_tl(cpu_regs[R_EAX], old_eax, quot_real, 0, 8);
+    // then deposit remainder into old_edx, place back into R_EDX or R_EAX depending on the mode
+    tcg_gen_deposit_tl(cpu_regs[R_EAX], cpu_regs[R_EAX], rem_real, 8, 8);
+    // divb %al, %cl <= we have to fill up ax, without touching the rest of eax/rax
+
+    tcg_temp_free(const_nbits);
+    tcg_temp_free(const_mask_lower);
+    tcg_temp_free(const_mask_higher);
+    tcg_temp_free(const_null);
+    tcg_temp_free(const_offset_lower);
+    tcg_temp_free(const_offset_higher);
+    tcg_temp_free(const_signed);
+    tcg_temp_free(const_target_bits);
+    tcg_temp_free(div_result__only_symbolic);
+    tcg_temp_free(quotient);
+    tcg_temp_free(remainder);
+    tcg_temp_free(old_eax);
+    tcg_temp_free(old_edx);
+    tcg_temp_free(quot_real);
+    tcg_temp_free(rem_real);
+}
+
 /* convert one instruction. s->base.is_jmp is set if the translation must
    be stopped. Return the next pc value */
 static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
@@ -4970,7 +5070,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         case 6: /* div */
             switch(ot) {
             case MO_8:
-                gen_helper_divb_AL(cpu_env, s->T0);
+                gen_symbolic_divb_AL(cpu_env, s, false); // unsigned divb == false
                 break;
             case MO_16:
                 gen_helper_divw_AX(cpu_env, s->T0);
@@ -4989,7 +5089,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         case 7: /* idiv */
             switch(ot) {
             case MO_8:
-                gen_helper_idivb_AL(cpu_env, s->T0);
+                gen_symbolic_divb_AL(cpu_env, s, true); // signed divb == true
                 break;
             case MO_16:
                 gen_helper_idivw_AX(cpu_env, s->T0);
@@ -5353,7 +5453,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
                 set_cc_op(s, CC_OP_EFLAGS);
                 break;
             }
-#endif        
+#endif
             if (!(s->cpuid_features & CPUID_CX8)) {
                 goto illegal_op;
             }
@@ -6986,6 +7086,8 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             goto illegal_op;
         gen_update_cc_op(s);
         gen_helper_daa(cpu_env);
+        // this overwrites eax, nuke the symbolic expression to concretize it
+        gen_concretize_temp(tcgv_tl_temp(cpu_regs[R_EAX]));
         set_cc_op(s, CC_OP_EFLAGS);
         break;
     case 0x2f: /* das */
@@ -6993,6 +7095,8 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             goto illegal_op;
         gen_update_cc_op(s);
         gen_helper_das(cpu_env);
+        // this overwrites eax, nuke the symbolic expression to concretize it
+        gen_concretize_temp(tcgv_tl_temp(cpu_regs[R_EAX]));
         set_cc_op(s, CC_OP_EFLAGS);
         break;
     case 0x37: /* aaa */
@@ -7000,6 +7104,8 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             goto illegal_op;
         gen_update_cc_op(s);
         gen_helper_aaa(cpu_env);
+        // this overwrites eax, nuke the symbolic expression to concretize it
+        gen_concretize_temp(tcgv_tl_temp(cpu_regs[R_EAX]));
         set_cc_op(s, CC_OP_EFLAGS);
         break;
     case 0x3f: /* aas */
@@ -7007,6 +7113,8 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             goto illegal_op;
         gen_update_cc_op(s);
         gen_helper_aas(cpu_env);
+        // this overwrites eax, nuke the symbolic expression to concretize it
+        gen_concretize_temp(tcgv_tl_temp(cpu_regs[R_EAX]));
         set_cc_op(s, CC_OP_EFLAGS);
         break;
     case 0xd4: /* aam */
@@ -7017,6 +7125,8 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             gen_exception(s, EXCP00_DIVZ, pc_start - s->cs_base);
         } else {
             gen_helper_aam(cpu_env, tcg_const_i32(val));
+            // this overwrites eax, nuke the symbolic expression to concretize it
+            gen_concretize_temp(tcgv_tl_temp(cpu_regs[R_EAX]));
             set_cc_op(s, CC_OP_LOGICB);
         }
         break;
@@ -7025,6 +7135,8 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             goto illegal_op;
         val = x86_ldub_code(env, s);
         gen_helper_aad(cpu_env, tcg_const_i32(val));
+        // this overwrites eax, nuke the symbolic expression to concretize it
+        gen_concretize_temp(tcgv_tl_temp(cpu_regs[R_EAX]));
         set_cc_op(s, CC_OP_LOGICB);
         break;
         /************************/
