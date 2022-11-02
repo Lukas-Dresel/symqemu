@@ -82,6 +82,7 @@ DEF_HELPER_FLAGS_2(sym_zext, TCG_CALL_NO_RWG_SE, ptr, ptr, i64)
 DEF_HELPER_FLAGS_1(sym_sext_i32_i64, TCG_CALL_NO_RWG_SE, ptr, ptr)
 DEF_HELPER_FLAGS_1(sym_zext_i32_i64, TCG_CALL_NO_RWG_SE, ptr, ptr)
 DEF_HELPER_FLAGS_1(sym_trunc_i64_i32, TCG_CALL_NO_RWG_SE, ptr, ptr)
+DEF_HELPER_FLAGS_2(sym_truncate_to, TCG_CALL_NO_RWG_SE, ptr, ptr, tl)
 DEF_HELPER_FLAGS_2(sym_zero_extend_by, TCG_CALL_NO_RWG_SE, ptr, ptr, i64)
 DEF_HELPER_FLAGS_2(sym_sign_extend_by, TCG_CALL_NO_RWG_SE, ptr, ptr, i64)
 DEF_HELPER_FLAGS_2(sym_zero_extend_to, TCG_CALL_NO_RWG_SE, ptr, ptr, i64)
@@ -133,3 +134,16 @@ DEF_HELPER_FLAGS_0(sym_collect_garbage, TCG_CALL_NO_RWG, void)
 /* The extrl and extrh instructions aren't emitted on 64-bit hosts. If we ever
  * extend support to other host architectures, we need to implement them. The
  * same applies to brcond2_i32 and setcond2_i32. */
+
+// division helpers
+
+// args: eax_expr, edx_expr, denominator_concrete, denominator_expr
+// these helpers are only for 8-32bits, 64-bit has to be handled separately
+DEF_HELPER_5(sym_div_8_signed, ptr, env, ptr, ptr, tl, ptr)
+DEF_HELPER_5(sym_div_8_unsigned, ptr, env, ptr, ptr, tl, ptr)
+DEF_HELPER_5(sym_div_16_signed, ptr, env, ptr, ptr, tl, ptr)
+DEF_HELPER_5(sym_div_16_unsigned, ptr, env, ptr, ptr, tl, ptr)
+DEF_HELPER_5(sym_div_32_signed, ptr, env, ptr, ptr, tl, ptr)
+DEF_HELPER_5(sym_div_32_unsigned, ptr, env, ptr, ptr, tl, ptr)
+DEF_HELPER_5(sym_div_64_signed, ptr, env, ptr, ptr, tl, ptr)
+DEF_HELPER_5(sym_div_64_unsigned, ptr, env, ptr, ptr, tl, ptr)

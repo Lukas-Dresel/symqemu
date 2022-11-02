@@ -273,6 +273,18 @@ void *HELPER(sym_zext_i32_i64)(void *expr)
     return _sym_build_zext(expr, 32); /* extend by 32 */
 }
 
+void *HELPER(sym_truncate_to)(void* expr, uint64_t target_bits) {
+    if (expr == NULL) {
+        return NULL;
+    }
+    size_t current_bits = _sym_bits_helper(expr);
+    if (current_bits == target_bits) {
+        return expr;
+    }
+    assert(current_bits > target_bits);
+    return _sym_extract_helper(expr, target_bits - 1, 0);
+}
+
 void *HELPER(sym_trunc_i64_i32)(void *expr)
 {
     if (expr == NULL)
