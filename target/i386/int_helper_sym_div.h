@@ -28,16 +28,16 @@ void* HELPER(glue(sym_div, DIVISION_SUFFIX))(CPUX86State *env,
 {
     unsigned long long mask_half = (unsigned long long)-1;
     mask_half >>= (64 - nbits);
-    printf("%s: Division by %lx\n", __func__, denominator);
+    // printf("%s: Division by %lx\n", __func__, denominator);
     if (eax_expr == NULL && denominator_expr == NULL && (nbits == 8 || edx_expr == NULL)) {
-        printf("\tfully concrete\n");
+        // printf("\tfully concrete\n");
         return NULL;
     }
     if (eax_expr == NULL) {
         eax_expr = _sym_build_integer(env->regs[R_EAX], TARGET_LONG_BITS);
         if (eax_expr == NULL) {
             // the backend forces us to concretize (probably expression pruning)
-            printf("\teax expression was pruned by the backend\n");
+            // printf("\teax expression was pruned by the backend\n");
             return NULL;
         }
     }
@@ -45,19 +45,19 @@ void* HELPER(glue(sym_div, DIVISION_SUFFIX))(CPUX86State *env,
         edx_expr = _sym_build_integer(env->regs[R_EDX], TARGET_LONG_BITS);
         if (edx_expr == NULL) {
             // the backend forces us to concretize (probably expression pruning)
-            printf("\tedx expression was pruned by the backend\n");
+            // printf("\tedx expression was pruned by the backend\n");
             return NULL;
         }
     }
     if (denominator_expr == NULL) {
         denominator_expr = _sym_build_integer(denominator, nbits);
         if (denominator_expr == NULL) {
-            printf("\tdenominator expression was pruned by the backend\n");
+            // printf("\tdenominator expression was pruned by the backend\n");
             // the backend forces us to concretize (probably expression pruning)
             return NULL;
         }
     }
-    printf("\teax: %p, edx: %p, denominator: %p\n", eax_expr, edx_expr, denominator_expr);
+    // printf("\teax: %p, edx: %p, denominator: %p\n", eax_expr, edx_expr, denominator_expr);
 
     assert(_sym_bits_helper(eax_expr) == TARGET_LONG_BITS);
     assert(nbits == 8 || (_sym_bits_helper(edx_expr) == TARGET_LONG_BITS));
@@ -133,8 +133,8 @@ void* HELPER(glue(sym_div, DIVISION_SUFFIX))(CPUX86State *env,
 
     if (numerator_expr == NULL || denominator_expr == NULL) {
         // the backend forces us to concretize (probably expression pruning)
-        printf("\tconcretizing due to backend pruning of numerator or denominator: numerator=%p, denominator=%p\n",
-                numerator_expr, denominator_expr);
+        // printf("\tconcretizing due to backend pruning of numerator or denominator: numerator=%p, denominator=%p\n",
+        //         numerator_expr, denominator_expr);
         return NULL;
     }
 
@@ -146,7 +146,7 @@ void* HELPER(glue(sym_div, DIVISION_SUFFIX))(CPUX86State *env,
     void* constraint_div_by_zero = _sym_build_equal(denominator_expr, _sym_build_integer(0, nbits*2));
     if (denominator_concrete == 0) {
         _sym_push_path_constraint(constraint_div_by_zero, true, site_id_div_by_zero);
-        printf("\texiting early with division by zero\n");
+        // printf("\texiting early with division by zero\n");
         return NULL;
     }
     _sym_push_path_constraint(constraint_div_by_zero, false, site_id_div_by_zero);
@@ -203,7 +203,7 @@ void* HELPER(glue(sym_div, DIVISION_SUFFIX))(CPUX86State *env,
     uintptr_t site_id_overflow = site_id_div_by_zero + 1;
     if (overflow_concrete) {
         _sym_push_path_constraint(constraint_overflow, true, site_id_overflow);
-        printf("\texiting early with division overflow\n");
+        // printf("\texiting early with division overflow\n");
         return NULL;
     }
     _sym_push_path_constraint(constraint_overflow, false, site_id_overflow);
@@ -270,13 +270,13 @@ void* HELPER(glue(sym_div, DIVISION_SUFFIX))(CPUX86State *env,
     #error "unsupported nbits" nbits
     #endif
 
-    printf("\tresult: eax_expr: %p, edx_expr: %p\n", eax_expr, edx_expr);
+    // printf("\tresult: eax_expr: %p, edx_expr: %p\n", eax_expr, edx_expr);
     assert(_sym_bits_helper(eax_expr) == TARGET_LONG_BITS);
     assert(nbits == 8 || _sym_bits_helper(edx_expr) == TARGET_LONG_BITS);
 
     // now we return the combined expression back to the caller to split to the register expressions
     void* result = _sym_concat_helper(edx_expr, eax_expr);
-    printf("\tresult: %p\n", result);
+    // printf("\tresult: %p\n", result);
     return result;
 }
 
