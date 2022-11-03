@@ -4507,12 +4507,12 @@ static void gen_division(TCGv_env cpu_env, DisasContext* s, target_ulong nbits, 
 
     if (nbits == 8) {
         if (is_signed) {
-            // gen_helper_sym_div_8_signed(div_result_expr,
-            //     cpu_env,
-            //     tcgv_tl_expr(cpu_regs[R_EAX]),
-            //     tcgv_tl_expr(cpu_regs[R_EDX]),
-            //     s->T0,
-            //     tcgv_tl_expr(s->T0));
+            gen_helper_sym_div_8_signed(div_result_expr,
+                cpu_env,
+                tcgv_tl_expr(cpu_regs[R_EAX]),
+                tcgv_tl_expr(cpu_regs[R_EDX]),
+                s->T0,
+                tcgv_tl_expr(s->T0));
 
             gen_helper_idivb_AL(cpu_env, s->T0);
         }
