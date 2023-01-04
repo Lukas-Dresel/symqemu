@@ -61,7 +61,7 @@ void* HELPER(glue(sym_div, DIVISION_SUFFIX))(CPUX86State *env,
 
     assert(_sym_bits_helper(eax_expr) == TARGET_LONG_BITS);
     assert(nbits == 8 || (_sym_bits_helper(edx_expr) == TARGET_LONG_BITS));
-    assert(_sym_bits_helper(denominator_expr) == TARGET_LONG_BITS);
+    assert(_sym_bits_helper(denominator_expr) == nbits);
 
     void* numerator_expr = NULL;
     target_ulong numerator_concrete_low = 0;
