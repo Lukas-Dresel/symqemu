@@ -5085,11 +5085,11 @@ fi
 
 
 if test -e "${symcc_runtime_dir}/libSymRuntime.so"; then
-    libs_cpu="-L${symcc_runtime_dir}/ -l:libSymRuntime.so -lz3 $libs_cpu"
+    libs_cpu="-L${symcc_runtime_dir}/ -lSymRuntime -lz3 $libs_cpu"
     libs_cpu="-Wl,-rpath,${symcc_runtime_dir}/ $libs_cpu"
 else
   if test -e "${symcc_build}/SymRuntime-prefix/src/SymRuntime-build/libSymRuntime.so"; then
-      libs_cpu="-L${symcc_build}/SymRuntime-prefix/src/SymRuntime-build -l:libSymRuntime.so -lz3 $libs_cpu"
+      libs_cpu="-L${symcc_build}/SymRuntime-prefix/src/SymRuntime-build -lSymRuntime -lz3 $libs_cpu"
       libs_cpu="-Wl,-rpath,${symcc_build}/SymRuntime-prefix/src/SymRuntime-build $libs_cpu"
   else
       feature_not_found "SymCC (runtime)" "Point --symcc-build to the SymCC build directory or --symcc-runtime-dir to the directory containing libSymRuntime.so"
